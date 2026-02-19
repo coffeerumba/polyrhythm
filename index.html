@@ -1,573 +1,309 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Polyrhythm Generator</title>
-<style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Polyrhythm Player</title>
+  <script src="https://cdn.jsdelivr.net/npm/tone@latest/build/Tone.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jquery@3/dist/jquery.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/tonal/browser/tonal.min.js"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
 
-  body {
-    background: #1a1a2e;
-    color: #e0e0e0;
-    font-family: 'Segoe UI', system-ui, sans-serif;
-    overflow: hidden;
-    height: 100vh;
-    display: flex;
-    flex-direction: column;
-  }
+    body {
+      background: #1a1a2e;
+      color: #e0e0e0;
+      font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 20px;
+    }
 
-  #canvas-container {
-    flex: 1;
-    position: relative;
-    min-height: 0;
-    overflow: hidden;
-  }
+    .container {
+      width: 100%;
+      max-width: 600px;
+    }
 
-  canvas {
-    display: block;
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-  }
+    h1 {
+      text-align: center;
+      margin-bottom: 24px;
+      font-size: 1.5rem;
+      color: #8be9fd;
+      letter-spacing: 0.05em;
+    }
 
-  #controls {
-    background: #101024;
-    border-top: 1px solid rgba(255, 255, 255, 0.15);
-    padding: 18px 24px;
-    display: flex;
-    align-items: center;
-    gap: 24px;
-    flex-shrink: 0;
-    z-index: 10;
-    min-height: 60px;
-  }
+    label {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 0.85rem;
+      color: #aaa;
+    }
 
-  .control-group {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
+    textarea {
+      width: 100%;
+      height: 180px;
+      background: #16213e;
+      color: #f8f8f2;
+      border: 1px solid #333;
+      border-radius: 6px;
+      padding: 12px;
+      font-family: 'Consolas', 'Courier New', monospace;
+      font-size: 0.95rem;
+      resize: vertical;
+      margin-bottom: 20px;
+      line-height: 1.6;
+    }
 
-  .control-group label {
-    font-size: 14px;
-    color: #aaa;
-    white-space: nowrap;
-  }
+    textarea:focus {
+      outline: none;
+      border-color: #8be9fd;
+    }
 
-  .control-group .value {
-    font-size: 14px;
-    font-weight: 600;
-    color: #fff;
-    min-width: 40px;
-    text-align: right;
-  }
+    textarea::placeholder {
+      color: #555;
+    }
 
-  input[type="range"] {
-    -webkit-appearance: none;
-    appearance: none;
-    width: 200px;
-    height: 6px;
-    background: #333;
-    border-radius: 3px;
-    outline: none;
-  }
+    .slider-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
 
-  input[type="range"]::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    appearance: none;
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
-    background: #7b68ee;
-    cursor: pointer;
-  }
+    .slider-row label {
+      margin-bottom: 0;
+      white-space: nowrap;
+      min-width: 60px;
+    }
 
-  input[type="range"]::-moz-range-thumb {
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
-    background: #7b68ee;
-    border: none;
-    cursor: pointer;
-  }
+    input[type="range"] {
+      flex: 1;
+      -webkit-appearance: none;
+      appearance: none;
+      height: 6px;
+      background: #333;
+      border-radius: 3px;
+      outline: none;
+    }
 
-  #btn-toggle {
-    padding: 8px 24px;
-    border: none;
-    border-radius: 6px;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    background: #7b68ee;
-    color: #fff;
-    transition: background 0.2s;
-  }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 18px;
+      height: 18px;
+      background: #8be9fd;
+      border-radius: 50%;
+      cursor: pointer;
+    }
 
-  #btn-toggle:hover {
-    background: #6a5acd;
-  }
+    .slider-value {
+      min-width: 40px;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      color: #8be9fd;
+      font-weight: bold;
+    }
 
-  #btn-toggle.running {
-    background: #e74c6f;
-  }
+    .controls {
+      text-align: center;
+      margin-bottom: 20px;
+    }
 
-  #btn-toggle.running:hover {
-    background: #d63d5e;
-  }
+    #playBtn {
+      background: #50fa7b;
+      color: #1a1a2e;
+      border: none;
+      border-radius: 8px;
+      padding: 12px 40px;
+      font-size: 1.1rem;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background 0.2s;
+      letter-spacing: 0.05em;
+    }
 
-  #mute-buttons {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
+    #playBtn:hover {
+      background: #69ff94;
+    }
 
-  .mute-btn {
-    width: 36px;
-    height: 36px;
-    border: 2px solid;
-    border-radius: 8px;
-    background: transparent;
-    font-size: 15px;
-    font-weight: 700;
-    cursor: pointer;
-    transition: opacity 0.2s, background 0.2s;
-  }
+    #playBtn.playing {
+      background: #ff5555;
+      color: #fff;
+    }
 
-  .mute-btn.muted {
-    opacity: 0.3;
-    background: rgba(255, 255, 255, 0.05);
-  }
-</style>
+    #playBtn.playing:hover {
+      background: #ff6e6e;
+    }
+
+    #status {
+      text-align: center;
+      font-size: 0.8rem;
+      color: #666;
+      min-height: 1.2em;
+    }
+
+    #status.error {
+      color: #ff5555;
+    }
+  </style>
 </head>
 <body>
-  <div id="canvas-container">
-    <canvas id="canvas"></canvas>
-  </div>
-  <div id="controls">
-    <div class="control-group">
-      <label>Period</label>
-      <input type="range" id="period-slider" min="0.5" max="4" step="0.1" value="2">
-      <span class="value" id="period-value">2.0s</span>
+  <div class="container">
+    <h1>Polyrhythm Player</h1>
+
+    <label for="score">Score (1 line = 1 voice, notes separated by commas)</label>
+    <textarea id="score" placeholder="C4,E4,G4&#10;C3,G3">C4,E4,G4
+C3,G3</textarea>
+
+    <div class="slider-row">
+      <label for="period">Period (t)</label>
+      <input type="range" id="period" min="0.5" max="4" step="0.01" value="2">
+      <span class="slider-value" id="periodValue">2.00s</span>
     </div>
-    <button id="btn-toggle">Start</button>
-    <div id="mute-buttons"></div>
+
+    <div class="controls">
+      <button id="playBtn">Play</button>
+    </div>
+    <div id="status"></div>
   </div>
 
-<script>
-// ============================================================
-// PolyVoice - represents a single polygon with n beats per cycle
-// ============================================================
-class PolyVoice {
-  constructor({ n, frequency, waveType, color, flashColor, radius }) {
-    this.n = n;
-    this.frequency = frequency;
-    this.waveType = waveType || 'sine';
-    this.color = color;
-    this.flashColor = flashColor || color;
-    this.radius = radius;
+  <script>
+    $(function () {
+      // --- State ---
+      let playing = false;
+      let synths = [];
+      let loops = [];
 
-    this.muted = false;
+      // --- Slider ---
+      const $period = $('#period');
+      const $periodValue = $('#periodValue');
 
-    this.vertices = [];
-    this.currentBeat = 0;
-    this.dotProgress = 0;
-    this.flashIntensity = 0;
-    this.nextBeatTime = 0;
-  }
-
-  computeVertices(cx, cy) {
-    this.vertices = [];
-    for (let i = 0; i < this.n; i++) {
-      const angle = -Math.PI / 2 + (2 * Math.PI * i) / this.n;
-      this.vertices.push({
-        x: cx + this.radius * Math.cos(angle),
-        y: cy + this.radius * Math.sin(angle),
-      });
-    }
-  }
-
-  getDotPosition() {
-    const from = this.vertices[this.currentBeat];
-    const to = this.vertices[(this.currentBeat + 1) % this.n];
-    return {
-      x: from.x + (to.x - from.x) * this.dotProgress,
-      y: from.y + (to.y - from.y) * this.dotProgress,
-    };
-  }
-
-  reset() {
-    this.currentBeat = 0;
-    this.dotProgress = 0;
-    this.flashIntensity = 0;
-  }
-}
-
-// ============================================================
-// AudioEngine - lookahead scheduler for precise beat timing
-// ============================================================
-class AudioEngine {
-  constructor() {
-    this.audioCtx = null;
-    this.masterGain = null;
-    this.scheduleAheadTime = 0.1; // seconds
-    this.lookaheadMs = 25;        // milliseconds
-    this.timerID = null;
-  }
-
-  init() {
-    if (!this.audioCtx) {
-      this.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      this.masterGain = this.audioCtx.createGain();
-      this.masterGain.gain.value = 0.8;
-      this.masterGain.connect(this.audioCtx.destination);
-    }
-    if (this.audioCtx.state === 'suspended') {
-      this.audioCtx.resume();
-    }
-  }
-
-  get currentTime() {
-    return this.audioCtx ? this.audioCtx.currentTime : 0;
-  }
-
-  startScheduler(voices, getState) {
-    this.stopScheduler();
-    this.timerID = setInterval(() => {
-      this._schedulerTick(voices, getState);
-    }, this.lookaheadMs);
-  }
-
-  stopScheduler() {
-    if (this.timerID !== null) {
-      clearInterval(this.timerID);
-      this.timerID = null;
-    }
-  }
-
-  _schedulerTick(voices, getState) {
-    const { period } = getState();
-    const now = this.audioCtx.currentTime;
-    const horizon = now + this.scheduleAheadTime;
-
-    for (const voice of voices) {
-      const beatInterval = period / voice.n;
-      while (voice.nextBeatTime < horizon) {
-        if (voice.nextBeatTime >= now - 0.01 && !voice.muted) {
-          this._createBeat(voice, voice.nextBeatTime);
+      $period.on('input', function () {
+        const t = parseFloat(this.value);
+        $periodValue.text(t.toFixed(2) + 's');
+        // If playing, update loop intervals live
+        if (playing) {
+          updateLoopIntervals(t);
         }
-        voice.nextBeatTime += beatInterval;
-      }
-    }
-  }
+      });
 
-  _createBeat(voice, time) {
-    const osc = this.audioCtx.createOscillator();
-    const env = this.audioCtx.createGain();
-
-    osc.type = voice.waveType;
-    osc.frequency.value = voice.frequency;
-
-    env.gain.setValueAtTime(0.001, time);
-    env.gain.exponentialRampToValueAtTime(0.7, time + 0.005);
-    env.gain.exponentialRampToValueAtTime(0.001, time + 0.1);
-
-    osc.connect(env);
-    env.connect(this.masterGain);
-
-    osc.start(time);
-    osc.stop(time + 0.1);
-
-    // Schedule flash (visual callback handled in animation loop via timing)
-    voice._pendingFlashTime = time;
-  }
-}
-
-// ============================================================
-// Renderer - Canvas 2D drawing
-// ============================================================
-class Renderer {
-  constructor(canvas) {
-    this.canvas = canvas;
-    this.ctx = canvas.getContext('2d');
-    this.dpr = window.devicePixelRatio || 1;
-    this.centerX = 0;
-    this.centerY = 0;
-    this.resize();
-  }
-
-  resize() {
-    const container = this.canvas.parentElement;
-    const w = container.clientWidth;
-    const h = container.clientHeight;
-    this.dpr = window.devicePixelRatio || 1;
-    this.canvas.width = w * this.dpr;
-    this.canvas.height = h * this.dpr;
-    this.canvas.style.width = w + 'px';
-    this.canvas.style.height = h + 'px';
-    this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
-    this.centerX = w / 2;
-    this.centerY = h / 2;
-  }
-
-  clear() {
-    const w = this.canvas.width / this.dpr;
-    const h = this.canvas.height / this.dpr;
-    this.ctx.fillStyle = '#1a1a2e';
-    this.ctx.fillRect(0, 0, w, h);
-  }
-
-  drawAll(voices) {
-    this.clear();
-    for (const voice of voices) {
-      this._drawPolygon(voice);
-      this._drawVertices(voice);
-      this._drawDot(voice);
-    }
-  }
-
-  _drawPolygon(voice) {
-    const ctx = this.ctx;
-    const v = voice.vertices;
-    if (v.length === 0) return;
-
-    ctx.beginPath();
-    ctx.moveTo(v[0].x, v[0].y);
-    for (let i = 1; i < v.length; i++) {
-      ctx.lineTo(v[i].x, v[i].y);
-    }
-    ctx.closePath();
-    ctx.strokeStyle = voice.color;
-    ctx.globalAlpha = 0.35;
-    ctx.lineWidth = 2;
-    ctx.stroke();
-    ctx.globalAlpha = 1;
-  }
-
-  _drawVertices(voice) {
-    const ctx = this.ctx;
-    for (let i = 0; i < voice.vertices.length; i++) {
-      const vx = voice.vertices[i];
-
-      // Flash effect for recently-hit vertex
-      if (i === voice.currentBeat && voice.flashIntensity > 0) {
-        const fi = voice.flashIntensity;
-        ctx.beginPath();
-        ctx.arc(vx.x, vx.y, 6 + fi * 20, 0, Math.PI * 2);
-        ctx.strokeStyle = voice.flashColor;
-        ctx.globalAlpha = fi * 0.6;
-        ctx.lineWidth = 2;
-        ctx.stroke();
-        ctx.globalAlpha = 1;
+      function updateLoopIntervals(t) {
+        loops.forEach(function (loop) {
+          const p = loop._polyP;
+          loop.interval = t / p;
+        });
       }
 
-      // Vertex dot
-      ctx.beginPath();
-      ctx.arc(vx.x, vx.y, 4, 0, Math.PI * 2);
-      ctx.fillStyle = voice.color;
-      ctx.globalAlpha = 0.7;
-      ctx.fill();
-      ctx.globalAlpha = 1;
-    }
-  }
+      // --- Parse score ---
+      function parseScore(text) {
+        const lines = text.split('\n').filter(function (line) {
+          return line.trim() !== '';
+        });
 
-  _drawDot(voice) {
-    const ctx = this.ctx;
-    const pos = voice.getDotPosition();
+        return lines.map(function (line) {
+          const notes = line.split(',').map(function (s) { return s.trim(); });
+          return notes.map(function (noteStr) {
+            if (!noteStr) return null;
+            const parsed = Tonal.Note.get(noteStr);
+            if (parsed.empty) return null;
+            return parsed.name;
+          });
+        });
+      }
 
-    // Glow
-    ctx.beginPath();
-    ctx.arc(pos.x, pos.y, 12, 0, Math.PI * 2);
-    ctx.fillStyle = voice.flashColor;
-    ctx.globalAlpha = 0.15;
-    ctx.fill();
-    ctx.globalAlpha = 1;
+      // --- Play / Stop ---
+      $('#playBtn').on('click', async function () {
+        if (playing) {
+          stop();
+        } else {
+          await start();
+        }
+      });
 
-    // Main dot
-    ctx.beginPath();
-    ctx.arc(pos.x, pos.y, 7, 0, Math.PI * 2);
-    ctx.fillStyle = '#fff';
-    ctx.fill();
+      async function start() {
+        await Tone.start();
 
-    // Inner colored core
-    ctx.beginPath();
-    ctx.arc(pos.x, pos.y, 4, 0, Math.PI * 2);
-    ctx.fillStyle = voice.color;
-    ctx.fill();
-  }
-}
+        const text = $('#score').val();
+        const voices = parseScore(text);
 
-// ============================================================
-// App - main orchestrator
-// ============================================================
-(function () {
-  const canvas = document.getElementById('canvas');
-  const periodSlider = document.getElementById('period-slider');
-  const periodDisplay = document.getElementById('period-value');
-  const btnToggle = document.getElementById('btn-toggle');
+        if (voices.length === 0) {
+          showStatus('No valid lines found.', true);
+          return;
+        }
 
-  const renderer = new Renderer(canvas);
-  const audio = new AudioEngine();
+        const t = parseFloat($period.val());
 
-  let period = parseFloat(periodSlider.value);
-  let running = false;
-  let cycleStartTime = 0;
-  let lastFrameTime = 0;
-  let animFrameId = null;
+        voices.forEach(function (notes, voiceIndex) {
+          const p = notes.length;
+          if (p === 0) return;
 
-  // Create voices
-  const voices = [
-    new PolyVoice({
-      n: 3,
-      frequency: 440,
-      waveType: 'sine',
-      color: '#00e5ff',
-      flashColor: '#00e5ff',
-      radius: 100,
-    }),
-    new PolyVoice({
-      n: 4,
-      frequency: 330,
-      waveType: 'triangle',
-      color: '#e040fb',
-      flashColor: '#e040fb',
-      radius: 160,
-    }),
-  ];
+          const synth = new Tone.PolySynth(Tone.Synth, {
+            oscillator: { type: 'triangle' },
+            envelope: {
+              attack: 0.005,
+              decay: 0.3,
+              sustain: 0.05,
+              release: 0.4
+            },
+            volume: -8
+          }).toDestination();
 
-  // Build mute buttons from voices array
-  const muteContainer = document.getElementById('mute-buttons');
-  for (const voice of voices) {
-    const btn = document.createElement('button');
-    btn.className = 'mute-btn';
-    btn.textContent = voice.n;
-    btn.style.borderColor = voice.color;
-    btn.style.color = voice.color;
-    btn.addEventListener('click', () => {
-      voice.muted = !voice.muted;
-      btn.classList.toggle('muted', voice.muted);
+          synths.push(synth);
+
+          let noteIndex = 0;
+          const interval = t / p;
+
+          const loop = new Tone.Loop(function (time) {
+            const note = notes[noteIndex % p];
+            if (note !== null) {
+              synth.triggerAttackRelease(note, '16n', time);
+            }
+            noteIndex++;
+            if (noteIndex >= p) noteIndex = 0;
+          }, interval);
+
+          loop._polyP = p;
+          loops.push(loop);
+          loop.start(0);
+        });
+
+        Tone.getTransport().start();
+        playing = true;
+        $('#playBtn').addClass('playing').text('Stop');
+        showStatus('');
+      }
+
+      function stop() {
+        Tone.getTransport().stop();
+        Tone.getTransport().cancel();
+
+        loops.forEach(function (loop) { loop.dispose(); });
+        loops = [];
+
+        synths.forEach(function (synth) { synth.dispose(); });
+        synths = [];
+
+        playing = false;
+        $('#playBtn').removeClass('playing').text('Play');
+        showStatus('');
+      }
+
+      function showStatus(msg, isError) {
+        const $s = $('#status');
+        $s.text(msg);
+        if (isError) {
+          $s.addClass('error');
+        } else {
+          $s.removeClass('error');
+        }
+      }
     });
-    muteContainer.appendChild(btn);
-  }
-
-  function computeAllVertices() {
-    for (const v of voices) {
-      v.computeVertices(renderer.centerX, renderer.centerY);
-    }
-  }
-
-  computeAllVertices();
-
-  // Resize handling
-  window.addEventListener('resize', () => {
-    renderer.resize();
-    computeAllVertices();
-    if (!running) {
-      renderer.drawAll(voices);
-    }
-  });
-
-  // Period slider
-  periodSlider.addEventListener('input', () => {
-    const newPeriod = parseFloat(periodSlider.value);
-    periodDisplay.textContent = newPeriod.toFixed(1) + 's';
-
-    if (running) {
-      // Re-synchronize: maintain position fraction in cycle
-      const now = audio.currentTime;
-      const elapsed = now - cycleStartTime;
-      const fraction = (elapsed % period) / period;
-      cycleStartTime = now - fraction * newPeriod;
-
-      // Recalculate nextBeatTime for each voice
-      for (const voice of voices) {
-        const beatInterval = newPeriod / voice.n;
-        const beatFraction = voice.currentBeat + voice.dotProgress;
-        const beatTime = cycleStartTime + beatFraction * beatInterval;
-        voice.nextBeatTime = beatTime + beatInterval;
-      }
-    }
-
-    period = newPeriod;
-  });
-
-  // Start / Stop
-  btnToggle.addEventListener('click', () => {
-    if (running) {
-      stop();
-    } else {
-      start();
-    }
-  });
-
-  function start() {
-    audio.init();
-    running = true;
-    btnToggle.textContent = 'Stop';
-    btnToggle.classList.add('running');
-
-    cycleStartTime = audio.currentTime;
-    lastFrameTime = audio.currentTime;
-
-    for (const voice of voices) {
-      voice.reset();
-      voice.nextBeatTime = cycleStartTime;
-    }
-
-    audio.startScheduler(voices, () => ({ period }));
-    animate();
-  }
-
-  function stop() {
-    running = false;
-    btnToggle.textContent = 'Start';
-    btnToggle.classList.remove('running');
-
-    audio.stopScheduler();
-    if (animFrameId !== null) {
-      cancelAnimationFrame(animFrameId);
-      animFrameId = null;
-    }
-
-    // Reset visual state
-    for (const voice of voices) {
-      voice.reset();
-    }
-    renderer.drawAll(voices);
-  }
-
-  function animate() {
-    if (!running) return;
-
-    const now = audio.currentTime;
-    const dt = Math.min(now - lastFrameTime, 0.05); // cap to avoid big jumps
-    lastFrameTime = now;
-
-    for (const voice of voices) {
-      const beatInterval = period / voice.n;
-
-      // Update dot progress
-      voice.dotProgress += dt / beatInterval;
-
-      while (voice.dotProgress >= 1.0) {
-        voice.dotProgress -= 1.0;
-        voice.currentBeat = (voice.currentBeat + 1) % voice.n;
-        voice.flashIntensity = 1.0;
-      }
-
-      // Decay flash
-      voice.flashIntensity = Math.max(0, voice.flashIntensity - dt * 5);
-    }
-
-    renderer.drawAll(voices);
-    animFrameId = requestAnimationFrame(animate);
-  }
-
-  // Initial draw
-  renderer.drawAll(voices);
-})();
-</script>
+  </script>
 </body>
 </html>
