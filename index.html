@@ -174,7 +174,7 @@
     <canvas id="visualizer"></canvas>
 
     <label for="score">Score (1 line = 1 voice, notes separated by commas)</label>
-    <div class="hint">Drums: kick, snare, hihat, clap, tom</div>
+    <div class="hint">Drums: kick, snare, hh, clap, tom</div>
     <textarea id="score" placeholder="C4,D4,C4&#10;F4,G4,F4,G4">C4,D4,C4
 F4,G4,F4,G4</textarea>
 
@@ -268,7 +268,7 @@ F4,G4,F4,G4</textarea>
           },
           trigger: function (synth, time) { synth.triggerAttackRelease('16n', time); }
         },
-        hihat: {
+        hh: {
           create: function () {
             return new Tone.MetalSynth({
               frequency: 400, envelope: { attack: 0.001, decay: 0.05, release: 0.01 },
@@ -303,7 +303,8 @@ F4,G4,F4,G4</textarea>
       // --- Parse score ---
       function parseScore(text) {
         const lines = text.split('\n').filter(function (line) {
-          return line.trim() !== '';
+          var trimmed = line.trim();
+          return trimmed !== '' && !trimmed.startsWith('//');
         });
 
         return lines.map(function (line) {
@@ -313,7 +314,7 @@ F4,G4,F4,G4</textarea>
             // Try tonal note first
             const parsed = Tonal.Note.get(noteStr);
             if (!parsed.empty) return parsed.name;
-            // Try drum name
+            // Try drum name (with alias)
             var drumKey = noteStr.toLowerCase();
             if (DRUMS[drumKey]) return { drum: drumKey };
             // Unknown → silent
