@@ -20,8 +20,6 @@
       font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
       display: flex;
       justify-content: center;
-      align-items: center;
-      min-height: 100vh;
       padding: 20px;
     }
 
@@ -174,9 +172,9 @@
 F4,G4,F4,G4</textarea>
 
     <div class="slider-row">
-      <label for="period">Period (t)</label>
-      <input type="range" id="period" min="0.5" max="4" step="0.01" value="2">
-      <span class="slider-value" id="periodValue">2.00s</span>
+      <label for="bpm">BPM</label>
+      <input type="range" id="bpm" min="15" max="300" step="1" value="120">
+      <span class="slider-value" id="bpmValue">120</span>
     </div>
 
     <div class="controls">
@@ -210,14 +208,18 @@ F4,G4,F4,G4</textarea>
       $(window).on('resize', resizeCanvas);
 
       // --- Slider ---
-      const $period = $('#period');
-      const $periodValue = $('#periodValue');
+      const $bpm = $('#bpm');
+      const $bpmValue = $('#bpmValue');
 
-      $period.on('input', function () {
-        const t = parseFloat(this.value);
-        $periodValue.text(t.toFixed(2) + 's');
+      function bpmToT(bpm) {
+        return 240 / bpm;
+      }
+
+      $bpm.on('input', function () {
+        const bpm = parseFloat(this.value);
+        $bpmValue.text(bpm);
         if (playing) {
-          updateLoopIntervals(t);
+          updateLoopIntervals(bpmToT(bpm));
         }
       });
 
@@ -308,7 +310,7 @@ F4,G4,F4,G4</textarea>
 
         if (voiceShapes.length === 0) return;
 
-        const t = parseFloat($period.val());
+        const t = bpmToT(parseFloat($bpm.val()));
         const now = Date.now();
 
         if (playing) {
@@ -456,7 +458,7 @@ F4,G4,F4,G4</textarea>
           return;
         }
 
-        const t = parseFloat($period.val());
+        const t = bpmToT(parseFloat($bpm.val()));
 
         // Build visualizer shapes
         buildShapes(voices);
