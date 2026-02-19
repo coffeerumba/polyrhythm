@@ -170,8 +170,8 @@
     <canvas id="visualizer"></canvas>
 
     <label for="score">Score (1 line = 1 voice, notes separated by commas)</label>
-    <textarea id="score" placeholder="C4,E4,G4&#10;C3,G3">C4,E4,G4
-C3,G3</textarea>
+    <textarea id="score" placeholder="C4,D4,C4&#10;F4,G4,F4,G4">C4,D4,C4
+F4,G4,F4,G4</textarea>
 
     <div class="slider-row">
       <label for="period">Period (t)</label>
@@ -289,6 +289,7 @@ C3,G3</textarea>
 
           return {
             p: p,
+            notes: notes,
             vertices: vertices,
             color: color,
             colorBright: colorBright,
@@ -351,6 +352,32 @@ C3,G3</textarea>
             ctx.beginPath();
             ctx.arc(v.x, v.y, 3, 0, Math.PI * 2);
             ctx.fill();
+          });
+
+          // Draw note labels near vertices
+          ctx.globalAlpha = 0.7;
+          ctx.fillStyle = shape.color;
+          ctx.font = '10px "Segoe UI", Arial, sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          var cx = canvas.getBoundingClientRect().width / 2;
+          var cy = canvas.getBoundingClientRect().height / 2;
+          verts.forEach(function (v, j) {
+            var label = shape.notes[j] !== null ? shape.notes[j] : '—';
+            var offsetDist = 14;
+            var dx = v.x - cx;
+            var dy = v.y - cy;
+            var dist = Math.sqrt(dx * dx + dy * dy);
+            var lx, ly;
+            if (dist < 1) {
+              // p=1 center point: place label above
+              lx = v.x;
+              ly = v.y - offsetDist;
+            } else {
+              lx = v.x + (dx / dist) * offsetDist;
+              ly = v.y + (dy / dist) * offsetDist;
+            }
+            ctx.fillText(label, lx, ly);
           });
 
           // Compute moving dot position
