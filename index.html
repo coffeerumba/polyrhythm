@@ -49,20 +49,20 @@
     label {
       display: block;
       margin-bottom: 6px;
-      font-size: 0.85rem;
+      font-size: 1.3rem;
       color: #aaa;
     }
 
     textarea {
       width: 100%;
-      height: 180px;
+      height: 300px;
       background: #16213e;
       color: #f8f8f2;
       border: 1px solid #333;
       border-radius: 6px;
       padding: 12px;
       font-family: 'Consolas', 'Courier New', monospace;
-      font-size: 0.95rem;
+      font-size: 1.4rem;
       resize: vertical;
       margin-bottom: 20px;
       line-height: 1.6;
@@ -129,7 +129,7 @@
       border: none;
       border-radius: 8px;
       padding: 12px 40px;
-      font-size: 1.1rem;
+      font-size: 1.5rem;
       font-weight: bold;
       cursor: pointer;
       transition: background 0.2s;
@@ -151,13 +151,19 @@
 
     #status {
       text-align: center;
-      font-size: 0.8rem;
+      font-size: 1.2rem;
       color: #666;
       min-height: 1.2em;
     }
 
     #status.error {
       color: #ff5555;
+    }
+
+    .hint {
+      font-size: 1.3rem;
+      color: #aaa;
+      margin-bottom: 8px;
     }
   </style>
 </head>
@@ -168,6 +174,7 @@
     <canvas id="visualizer"></canvas>
 
     <label for="score">Score (1 line = 1 voice, notes separated by commas)</label>
+    <div class="hint">Drums: kick, snare, hihat, clap, tom</div>
     <textarea id="score" placeholder="C4,D4,C4&#10;F4,G4,F4,G4">C4,D4,C4
 F4,G4,F4,G4</textarea>
 
@@ -192,6 +199,15 @@ F4,G4,F4,G4</textarea>
       let voiceShapes = [];
       let animFrameId = null;
       let lastTransportSeconds = 0;
+
+      // --- Restore from localStorage ---
+      var savedScore = localStorage.getItem('polyrhythm_score');
+      var savedBpm = localStorage.getItem('polyrhythm_bpm');
+      if (savedScore !== null) $('#score').val(savedScore);
+      if (savedBpm !== null) {
+        $('#bpm').val(savedBpm);
+        $('#bpmValue').text(savedBpm);
+      }
 
       // --- Canvas setup ---
       const canvas = document.getElementById('visualizer');
@@ -230,6 +246,60 @@ F4,G4,F4,G4</textarea>
         });
       }
 
+      // --- Drum definitions ---
+      const DRUMS = {
+        kick: {
+          create: function () {
+            return new Tone.MembraneSynth({
+              pitchDecay: 0.05, octaves: 10,
+              envelope: { attack: 0.001, decay: 0.4, sustain: 0, release: 0.1 },
+              volume: -4
+            }).toDestination();
+          },
+          trigger: function (synth, time) { synth.triggerAttackRelease('C1', '8n', time); }
+        },
+        snare: {
+          create: function () {
+            return new Tone.NoiseSynth({
+              noise: { type: 'white' },
+              envelope: { attack: 0.001, decay: 0.15, sustain: 0, release: 0.05 },
+              volume: -14
+            }).toDestination();
+          },
+          trigger: function (synth, time) { synth.triggerAttackRelease('16n', time); }
+        },
+        hihat: {
+          create: function () {
+            return new Tone.MetalSynth({
+              frequency: 400, envelope: { attack: 0.001, decay: 0.05, release: 0.01 },
+              harmonicity: 5.1, modulationIndex: 32, resonance: 4000, octaves: 1.5,
+              volume: -21
+            }).toDestination();
+          },
+          trigger: function (synth, time) { synth.triggerAttackRelease('32n', time); }
+        },
+        clap: {
+          create: function () {
+            return new Tone.NoiseSynth({
+              noise: { type: 'pink' },
+              envelope: { attack: 0.01, decay: 0.1, sustain: 0, release: 0.05 },
+              volume: -8
+            }).toDestination();
+          },
+          trigger: function (synth, time) { synth.triggerAttackRelease('16n', time); }
+        },
+        tom: {
+          create: function () {
+            return new Tone.MembraneSynth({
+              pitchDecay: 0.03, octaves: 4,
+              envelope: { attack: 0.001, decay: 0.3, sustain: 0, release: 0.1 },
+              volume: -6
+            }).toDestination();
+          },
+          trigger: function (synth, time) { synth.triggerAttackRelease('E2', '8n', time); }
+        }
+      };
+
       // --- Parse score ---
       function parseScore(text) {
         const lines = text.split('\n').filter(function (line) {
@@ -240,9 +310,14 @@ F4,G4,F4,G4</textarea>
           const notes = line.split(',').map(function (s) { return s.trim(); });
           return notes.map(function (noteStr) {
             if (!noteStr) return null;
+            // Try tonal note first
             const parsed = Tonal.Note.get(noteStr);
-            if (parsed.empty) return null;
-            return parsed.name;
+            if (!parsed.empty) return parsed.name;
+            // Try drum name
+            var drumKey = noteStr.toLowerCase();
+            if (DRUMS[drumKey]) return { drum: drumKey };
+            // Unknown → silent
+            return null;
           });
         });
       }
@@ -359,14 +434,15 @@ F4,G4,F4,G4</textarea>
           // Draw note labels near vertices
           ctx.globalAlpha = 0.7;
           ctx.fillStyle = shape.color;
-          ctx.font = '10px "Segoe UI", Arial, sans-serif';
+          ctx.font = '16px "Segoe UI", Arial, sans-serif';
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
           var cx = canvas.getBoundingClientRect().width / 2;
           var cy = canvas.getBoundingClientRect().height / 2;
           verts.forEach(function (v, j) {
-            var label = shape.notes[j] !== null ? shape.notes[j] : '—';
-            var offsetDist = 14;
+            var n = shape.notes[j];
+            var label = n === null ? '—' : (typeof n === 'string' ? n : n.drum);
+            var offsetDist = 18;
             var dx = v.x - cx;
             var dy = v.y - cy;
             var dist = Math.sqrt(dx * dx + dy * dy);
@@ -458,6 +534,10 @@ F4,G4,F4,G4</textarea>
           return;
         }
 
+        // Save to localStorage
+        localStorage.setItem('polyrhythm_score', text);
+        localStorage.setItem('polyrhythm_bpm', $bpm.val());
+
         const t = bpmToT(parseFloat($bpm.val()));
 
         // Build visualizer shapes
@@ -468,18 +548,33 @@ F4,G4,F4,G4</textarea>
           const p = notes.length;
           if (p === 0) return;
 
-          const synth = new Tone.PolySynth(Tone.Synth, {
-            oscillator: { type: 'triangle' },
-            envelope: {
-              attack: 0.005,
-              decay: 0.3,
-              sustain: 0.05,
-              release: 0.4
-            },
-            volume: -8
-          }).toDestination();
+          // Determine which synths this voice needs
+          var hasMelody = notes.some(function (n) { return typeof n === 'string'; });
+          var drumTypes = {};
+          notes.forEach(function (n) {
+            if (n !== null && typeof n === 'object' && n.drum) {
+              drumTypes[n.drum] = true;
+            }
+          });
 
-          synths.push(synth);
+          // Create melody synth if needed
+          var melodySynth = null;
+          if (hasMelody) {
+            melodySynth = new Tone.PolySynth(Tone.Synth, {
+              oscillator: { type: 'triangle' },
+              envelope: { attack: 0.005, decay: 0.3, sustain: 0.05, release: 0.4 },
+              volume: -8
+            }).toDestination();
+            synths.push(melodySynth);
+          }
+
+          // Create drum synths for each type used in this voice
+          var drumSynths = {};
+          Object.keys(drumTypes).forEach(function (key) {
+            var ds = DRUMS[key].create();
+            drumSynths[key] = ds;
+            synths.push(ds);
+          });
 
           let noteIndex = 0;
           const interval = t / p;
@@ -487,7 +582,11 @@ F4,G4,F4,G4</textarea>
           const loop = new Tone.Loop(function (time) {
             const note = notes[noteIndex % p];
             if (note !== null) {
-              synth.triggerAttackRelease(note, '16n', time);
+              if (typeof note === 'string') {
+                melodySynth.triggerAttackRelease(note, '16n', time);
+              } else if (note.drum && drumSynths[note.drum]) {
+                DRUMS[note.drum].trigger(drumSynths[note.drum], time);
+              }
             }
             // Trigger highlight for this voice
             if (voiceShapes[voiceIndex]) {
