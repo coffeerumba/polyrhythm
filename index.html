@@ -32,10 +32,20 @@
 
     h1 {
       text-align: center;
-      margin-bottom: 24px;
+      margin-bottom: 16px;
       font-size: 1.5rem;
       color: #8be9fd;
       letter-spacing: 0.05em;
+    }
+
+    #visualizer {
+      width: 100%;
+      height: 300px;
+      background: #0f0f23;
+      border: 1px solid #333;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      display: block;
     }
 
     label {
@@ -157,6 +167,8 @@
   <div class="container">
     <h1>Polyrhythm Player</h1>
 
+    <canvas id="visualizer"></canvas>
+
     <label for="score">Score (1 line = 1 voice, notes separated by commas)</label>
     <textarea id="score" placeholder="C4,E4,G4&#10;C3,G3">C4,E4,G4
 C3,G3</textarea>
@@ -179,6 +191,23 @@ C3,G3</textarea>
       let playing = false;
       let synths = [];
       let loops = [];
+      let voiceShapes = [];
+      let animFrameId = null;
+      let lastTransportSeconds = 0;
+
+      // --- Canvas setup ---
+      const canvas = document.getElementById('visualizer');
+      const ctx = canvas.getContext('2d');
+
+      function resizeCanvas() {
+        const dpr = window.devicePixelRatio || 1;
+        const rect = canvas.getBoundingClientRect();
+        canvas.width = rect.width * dpr;
+        canvas.height = rect.height * dpr;
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      }
+      resizeCanvas();
+      $(window).on('resize', resizeCanvas);
 
       // --- Slider ---
       const $period = $('#period');
@@ -187,7 +216,6 @@ C3,G3</textarea>
       $period.on('input', function () {
         const t = parseFloat(this.value);
         $periodValue.text(t.toFixed(2) + 's');
-        // If playing, update loop intervals live
         if (playing) {
           updateLoopIntervals(t);
         }
@@ -217,6 +245,170 @@ C3,G3</textarea>
         });
       }
 
+      // --- Visualizer: build shapes ---
+      function buildShapes(voices) {
+        const rect = canvas.getBoundingClientRect();
+        const cx = rect.width / 2;
+        const cy = rect.height / 2;
+        const count = voices.length;
+        const maxRadius = Math.min(cx, cy) * 0.75;
+        const minRadius = 20;
+
+        voiceShapes = voices.map(function (notes, i) {
+          const p = notes.length;
+          const hue = (i * 360 / count) % 360;
+          const color = 'hsl(' + hue + ', 70%, 60%)';
+          const colorBright = 'hsl(' + hue + ', 90%, 80%)';
+
+          // Distribute radii: innermost = smallest, outermost = largest
+          var radius;
+          if (count === 1) {
+            radius = maxRadius * 0.6;
+          } else {
+            radius = minRadius + (maxRadius - minRadius) * (i / (count - 1));
+          }
+
+          // Compute vertices
+          var vertices = [];
+          if (p === 1) {
+            vertices = [{ x: cx, y: cy }];
+          } else if (p === 2) {
+            vertices = [
+              { x: cx - radius, y: cy },
+              { x: cx + radius, y: cy }
+            ];
+          } else {
+            for (var j = 0; j < p; j++) {
+              var angle = -Math.PI / 2 + (2 * Math.PI * j) / p;
+              vertices.push({
+                x: cx + radius * Math.cos(angle),
+                y: cy + radius * Math.sin(angle)
+              });
+            }
+          }
+
+          return {
+            p: p,
+            vertices: vertices,
+            color: color,
+            colorBright: colorBright,
+            radius: radius,
+            highlightTime: 0
+          };
+        });
+      }
+
+      // --- Visualizer: draw frame ---
+      function drawFrame() {
+        const rect = canvas.getBoundingClientRect();
+        const w = rect.width;
+        const h = rect.height;
+        ctx.clearRect(0, 0, w, h);
+
+        if (voiceShapes.length === 0) return;
+
+        const t = parseFloat($period.val());
+        const now = Date.now();
+
+        if (playing) {
+          lastTransportSeconds = Tone.getTransport().seconds;
+        }
+        const elapsed = lastTransportSeconds % t;
+        const progress = elapsed / t;
+
+        voiceShapes.forEach(function (shape) {
+          const p = shape.p;
+          const verts = shape.vertices;
+
+          // Draw polygon edges
+          ctx.strokeStyle = shape.color;
+          ctx.globalAlpha = 0.3;
+          ctx.lineWidth = 1.5;
+          if (p === 1) {
+            // Single point: draw a small circle marker
+            ctx.beginPath();
+            ctx.arc(verts[0].x, verts[0].y, 4, 0, Math.PI * 2);
+            ctx.stroke();
+          } else if (p === 2) {
+            ctx.beginPath();
+            ctx.moveTo(verts[0].x, verts[0].y);
+            ctx.lineTo(verts[1].x, verts[1].y);
+            ctx.stroke();
+          } else {
+            ctx.beginPath();
+            ctx.moveTo(verts[0].x, verts[0].y);
+            for (var j = 1; j < p; j++) {
+              ctx.lineTo(verts[j].x, verts[j].y);
+            }
+            ctx.closePath();
+            ctx.stroke();
+          }
+
+          // Draw vertices as small dots
+          ctx.globalAlpha = 0.5;
+          ctx.fillStyle = shape.color;
+          verts.forEach(function (v) {
+            ctx.beginPath();
+            ctx.arc(v.x, v.y, 3, 0, Math.PI * 2);
+            ctx.fill();
+          });
+
+          // Compute moving dot position
+          var dotX, dotY;
+          if (p === 1) {
+            dotX = verts[0].x;
+            dotY = verts[0].y;
+          } else {
+            var idx = Math.floor(progress * p) % p;
+            var frac = (progress * p) - Math.floor(progress * p);
+            var nextIdx = (idx + 1) % p;
+            dotX = verts[idx].x + (verts[nextIdx].x - verts[idx].x) * frac;
+            dotY = verts[idx].y + (verts[nextIdx].y - verts[idx].y) * frac;
+          }
+
+          // Highlight effect
+          var timeSinceHighlight = now - shape.highlightTime;
+          var isHighlighted = timeSinceHighlight < 150;
+
+          ctx.globalAlpha = 1.0;
+          if (isHighlighted) {
+            // Glow effect
+            var glowFade = 1 - (timeSinceHighlight / 150);
+            var glowRadius = 6 + 12 * glowFade;
+            ctx.fillStyle = shape.colorBright;
+            ctx.shadowColor = shape.colorBright;
+            ctx.shadowBlur = 20 * glowFade;
+            ctx.beginPath();
+            ctx.arc(dotX, dotY, glowRadius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+          } else {
+            // Normal dot
+            ctx.fillStyle = shape.color;
+            ctx.beginPath();
+            ctx.arc(dotX, dotY, 5, 0, Math.PI * 2);
+            ctx.fill();
+          }
+
+          ctx.globalAlpha = 1.0;
+        });
+
+        animFrameId = requestAnimationFrame(drawFrame);
+      }
+
+      function startAnimation() {
+        if (animFrameId) cancelAnimationFrame(animFrameId);
+        animFrameId = requestAnimationFrame(drawFrame);
+      }
+
+      function stopAnimation() {
+        // Draw one last frame in stopped state, then stop looping
+        if (animFrameId) cancelAnimationFrame(animFrameId);
+        drawFrame(); // render final state
+        if (animFrameId) cancelAnimationFrame(animFrameId);
+        animFrameId = null;
+      }
+
       // --- Play / Stop ---
       $('#playBtn').on('click', async function () {
         if (playing) {
@@ -238,6 +430,10 @@ C3,G3</textarea>
         }
 
         const t = parseFloat($period.val());
+
+        // Build visualizer shapes
+        buildShapes(voices);
+        lastTransportSeconds = 0;
 
         voices.forEach(function (notes, voiceIndex) {
           const p = notes.length;
@@ -264,6 +460,10 @@ C3,G3</textarea>
             if (note !== null) {
               synth.triggerAttackRelease(note, '16n', time);
             }
+            // Trigger highlight for this voice
+            if (voiceShapes[voiceIndex]) {
+              voiceShapes[voiceIndex].highlightTime = Date.now();
+            }
             noteIndex++;
             if (noteIndex >= p) noteIndex = 0;
           }, interval);
@@ -277,6 +477,7 @@ C3,G3</textarea>
         playing = true;
         $('#playBtn').addClass('playing').text('Stop');
         showStatus('');
+        startAnimation();
       }
 
       function stop() {
@@ -292,6 +493,7 @@ C3,G3</textarea>
         playing = false;
         $('#playBtn').removeClass('playing').text('Play');
         showStatus('');
+        stopAnimation();
       }
 
       function showStatus(msg, isError) {
